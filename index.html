@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>🎰 SEBSLOTS</title>
+  <style>
+    body { font-family: Arial, sans-serif; text-align: center; background: #111; color: #fff; }
+    .slot { font-size: 5em; margin: 20px 0; }
+    button, input { font-size: 1.2em; padding: 10px; margin: 10px; }
+    input { width: 100px; }
+    .balance { font-size: 1.5em; margin-top: 20px; }
+  </style>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+</head>
+<body>
+  <h1>🎰 SEBSLOTS - Casino</h1>
+  <div class="balance">Balance: <span id="balance">Loading...</span> coins</div>
+  <div class="slot" id="slots">❓❓❓</div>
+  <input type="number" id="bet" placeholder="Bet" min="1" value="1" />
+  <button onclick="spin()">Spin</button>
+  <div id="result"></div>
+
+  <script>
+    const config = {
+      apiKey: "AIzaSyDF5xCzBZTaiDLmGYzCMA30JJe1wo1NnTM",
+      authDomain: "sebs-slots.firebaseapp.com",
+      databaseURL: "https://sebs-slots-default-rtdb.firebaseio.com",
+      projectId: "sebs-slots",
+      storageBucket: "sebs-slots.appspot.com",
+      messagingSenderId: "533099721506",
+      appId: "1:533099721506:web:36be31542e4988f123eb7b"
+    };
+
+    firebase.initializeApp(config);
+    const auth = firebase.auth();
+    const db = firebase.database();
+    let user = null;
+
+    const symbols = ["🍒", "🍋", "🍉", "🔔", "💎", "7️⃣"];
+    const weights = [30, 25, 20, 15, 8, 2];
+    const payouts = {
+      "🍒🍒🍒": 2,
+      "🍋🍋🍋": 3,
+      "🍉🍉🍉": 5,
+      "🔔🔔🔔": 8,
+      "💎💎💎": 15,
+      "7️⃣7️⃣7️⃣": 100
+    };
+
+    function weightedRandom() {
+      const sum = weights.reduce((a, b) => a + b, 0);
+      let rand = Math.random() * sum;
+      for (let i = 0; i < symbols.length; i++) {
+        if (rand < weights[i]) return symbols[i];
+        rand -= weights[i];
+      }
+    }
+
+    function spin() {
+      const bet = parseInt(document.getElementById("bet").value);
+      if (!user || isNaN(bet) || bet < 1) {
+        alert("Invalid bet.");
+        return;
+      }
+
+      const ref = db.ref("users/" + user.uid + "/balance");
+
+      ref.transaction(bal => {
+        if (bal === null) return; // balance not ready
+        if (bal < bet) return; // not enough balance
+
+        const spin = [weightedRandom(), weightedRandom(), weightedRandom()];
+        const resultKey = spin.join("");
+        const rawWin = (payouts[resultKey] || 0) * bet;
+        const win = rawWin > 0 ? rawWin * 0.87 : 0; // 13% casino edge
+        const newBalance = bal - bet + win;
+
+        // Show result
+        document.getElementById("slots").textContent = spin.join("");
+        document.getElementById("balance").textContent = newBalance.toFixed(2);
+        document.getElementById("result").textContent = win > 0
+          ? `You won ${win.toFixed(2)} coins!`
+          : "You lost.";
+
+        return newBalance;
+      });
+    }
+
+    // Sign in anonymously and load balance
+    auth.signInAnonymously().then(cred => {
+      user = cred.user;
+      const ref = db.ref("users/" + user.uid + "/balance");
+
+      ref.once("value").then(snapshot => {
+        let bal = snapshot.val();
+        if (bal === null) {
+          bal = 100;
+          ref.set(bal);
+        }
+        document.getElementById("balance").textContent = bal.toFixed(2);
+      });
+    });
+  </script>
+</body>
+</html>
